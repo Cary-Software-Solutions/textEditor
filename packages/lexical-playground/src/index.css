@@ -8,6 +8,77 @@
 
 @import 'https://fonts.googleapis.com/css?family=Reenie+Beanie';
 
+.component-picker-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 20px; /* vertical spacing between sections */
+}
+
+.header-title {
+  padding: 10px;
+  font-size: 14px; /* adjust as needed */
+  font-weight: normal;
+  color: #a9aaac;
+}
+
+/* Style for the dropdown menu */
+.typeahead-popover.component-picker-menu {
+  width: 650px; /* Adjust based on your preference */
+  display: flex;
+  flex-direction: column;
+  background-color: #272a2f;
+}
+
+/* Style for each section */
+.section {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 10px;
+}
+
+.options-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 5px; /* adjust as needed */
+  font-size: 14px;
+  background-color: #272a2f;
+}
+
+.options-row .item {
+  background-color: #272a2f; /* Black background */
+  font-size: 14px; /* Adjust as needed for size */
+  padding: 5px 10px; /* Adjust as needed for spacing around each item */
+  color: #fff;
+}
+
+.options-row .item:hover {
+  background-color: #333; /* Light black/greyish color on hover */
+}
+
+.options-row .item .icon {
+  font-size: 12px; /* Adjust as needed to make the icon smaller */
+  color: #fff;
+}
+
+.options-row .item .text {
+  font-size: 14px; /* Adjust as needed to make the text smaller */
+}
+
+/* Style for each menu item */
+.component-picker-item {
+  width: calc(
+    33.333% - 10px
+  ); /* Divide by 3 for 3 columns and subtract for margin */
+  font-size: 14px;
+  background-color: #272a2f;
+  box-sizing: border-box;
+}
+
+/* Remove the margin-right for every third item (not necessary now) */
+.component-picker-item:nth-child(3n) {
+  margin-right: 0;
+}
+
 body {
   margin: 0;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, '.SFNSText-Regular',
@@ -46,17 +117,27 @@ header h1 {
 }
 
 .editor-shell {
-  margin: 20px auto;
+  margin-top: 30px; /* A little bit from the top */
   border-radius: 2px;
-  max-width: 1100px;
-  color: #000;
+
   position: relative;
   line-height: 1.7;
   font-weight: 400;
+
+  /* Width constraints */
+  width: 650px; /* A fixed width */
+  max-width: 95%; /* This ensures that it won't exceed 95% of its container's width, adjust as needed */
+
+  /* Centering & positioning towards the left */
+  left: 57%;
+  transform: translateX(
+    -60%
+  ); /* This will move it more towards the left than the center */
+  position: absolute;
+  padding: 20px; /* Some padding for your content */
 }
 
 .editor-shell .editor-container {
-  background: #fff;
   position: relative;
   display: block;
   border-bottom-left-radius: 10px;
@@ -80,7 +161,6 @@ header h1 {
   outline: 0;
   z-index: 0;
   overflow: auto;
-  resize: vertical;
 }
 
 .editor {
@@ -166,57 +246,9 @@ pre::-webkit-scrollbar-thumb {
   display: flex;
 }
 
-.test-recorder-button {
-  position: relative;
-  display: block;
-  width: 32px;
-  height: 32px;
-  font-size: 10px;
-  padding: 6px 6px;
-  border-radius: 4px;
-  border: none;
-  cursor: pointer;
-  outline: none;
-  box-shadow: 1px 2px 2px rgba(0, 0, 0, 0.4);
-  background-color: #222;
-  transition: box-shadow 50ms ease-out;
-}
-
-.test-recorder-button:active {
-  box-shadow: 1px 2px 4px rgba(0, 0, 0, 0.4);
-}
-
-.test-recorder-button + .test-recorder-button {
-  margin-left: 4px;
-}
-
-.test-recorder-button::after {
-  content: '';
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  bottom: 8px;
-  left: 8px;
-  display: block;
-  background-size: contain;
-  filter: invert(1);
-}
-
 #options-button {
   position: fixed;
   left: 20px;
-  bottom: 20px;
-}
-
-#test-recorder-button {
-  position: fixed;
-  left: 70px;
-  bottom: 20px;
-}
-
-#paste-log-button {
-  position: fixed;
-  left: 120px;
   bottom: 20px;
 }
 
@@ -230,32 +262,8 @@ pre::-webkit-scrollbar-thumb {
   background-image: url(images/icons/gear.svg);
 }
 
-#test-recorder-button::after {
-  background-image: url(images/icons/journal-code.svg);
-}
-
-#paste-log-button::after {
-  background-image: url(images/icons/clipboard.svg);
-}
-
 #docs-button::after {
   background-image: url(images/icons/file-earmark-text.svg);
-}
-
-#test-recorder-button-snapshot {
-  margin-right: auto;
-}
-
-#test-recorder-button-snapshot::after {
-  background-image: url(images/icons/camera.svg);
-}
-
-#test-recorder-button-copy::after {
-  background-image: url(images/icons/clipboard.svg);
-}
-
-#test-recorder-button-download::after {
-  background-image: url(images/icons/download.svg);
 }
 
 .typeahead-popover {

@@ -12,7 +12,6 @@ import {
   INSERT_ORDERED_LIST_COMMAND,
   INSERT_UNORDERED_LIST_COMMAND,
 } from '@lexical/list';
-import {INSERT_EMBED_COMMAND} from '@lexical/react/LexicalAutoEmbedPlugin';
 import {useLexicalComposerContext} from '@lexical/react/LexicalComposerContext';
 import {INSERT_HORIZONTAL_RULE_COMMAND} from '@lexical/react/LexicalHorizontalRuleNode';
 import {
@@ -22,7 +21,6 @@ import {
 } from '@lexical/react/LexicalTypeaheadMenuPlugin';
 import {$createHeadingNode, $createQuoteNode} from '@lexical/rich-text';
 import {$setBlocksType} from '@lexical/selection';
-import {INSERT_TABLE_COMMAND} from '@lexical/table';
 import {
   $createParagraphNode,
   $getSelection,
@@ -37,15 +35,10 @@ import * as ReactDOM from 'react-dom';
 
 import useModal from '../../hooks/useModal';
 import catTypingGif from '../../images/cat-typing.gif';
-import {EmbedConfigs} from '../AutoEmbedPlugin';
-import {INSERT_COLLAPSIBLE_COMMAND} from '../CollapsiblePlugin';
 import {InsertEquationDialog} from '../EquationsPlugin';
-import {INSERT_EXCALIDRAW_COMMAND} from '../ExcalidrawPlugin';
 import {INSERT_IMAGE_COMMAND, InsertImageDialog} from '../ImagesPlugin';
 import InsertLayoutDialog from '../LayoutPlugin/InsertLayoutDialog';
-import {INSERT_PAGE_BREAK} from '../PageBreakPlugin';
-import {InsertPollDialog} from '../PollPlugin';
-import {InsertNewTableDialog, InsertTableDialog} from '../TablePlugin';
+import {InsertTableDialog} from '../TablePlugin';
 
 class ComponentPickerOption extends MenuOption {
   // What shows up in the editor
@@ -111,37 +104,6 @@ function ComponentPickerMenuItem({
   );
 }
 
-function getDynamicOptions(editor: LexicalEditor, queryString: string) {
-  const options: Array<ComponentPickerOption> = [];
-
-  if (queryString == null) {
-    return options;
-  }
-
-  const tableMatch = queryString.match(/^([1-9]\d?)(?:x([1-9]\d?)?)?$/);
-
-  if (tableMatch !== null) {
-    const rows = tableMatch[1];
-    const colOptions = tableMatch[2]
-      ? [tableMatch[2]]
-      : [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(String);
-
-    options.push(
-      ...colOptions.map(
-        (columns) =>
-          new ComponentPickerOption(`${rows}x${columns} Table`, {
-            icon: <i className="icon table" />,
-            keywords: ['table'],
-            onSelect: () =>
-              editor.dispatchCommand(INSERT_TABLE_COMMAND, {columns, rows}),
-          }),
-      ),
-    );
-  }
-
-  return options;
-}
-
 type ShowModal = ReturnType<typeof useModal>[1];
 
 function getBaseOptions(editor: LexicalEditor, showModal: ShowModal) {
@@ -179,14 +141,7 @@ function getBaseOptions(editor: LexicalEditor, showModal: ShowModal) {
           <InsertTableDialog activeEditor={editor} onClose={onClose} />
         )),
     }),
-    new ComponentPickerOption('Table (Experimental)', {
-      icon: <i className="icon table" />,
-      keywords: ['table', 'grid', 'spreadsheet', 'rows', 'columns'],
-      onSelect: () =>
-        showModal('Insert Table', (onClose) => (
-          <InsertNewTableDialog activeEditor={editor} onClose={onClose} />
-        )),
-    }),
+
     new ComponentPickerOption('Numbered List', {
       icon: <i className="icon number" />,
       keywords: ['numbered list', 'ordered list', 'ol'],
@@ -242,34 +197,7 @@ function getBaseOptions(editor: LexicalEditor, showModal: ShowModal) {
       onSelect: () =>
         editor.dispatchCommand(INSERT_HORIZONTAL_RULE_COMMAND, undefined),
     }),
-    new ComponentPickerOption('Page Break', {
-      icon: <i className="icon page-break" />,
-      keywords: ['page break', 'divider'],
-      onSelect: () => editor.dispatchCommand(INSERT_PAGE_BREAK, undefined),
-    }),
-    new ComponentPickerOption('Excalidraw', {
-      icon: <i className="icon diagram-2" />,
-      keywords: ['excalidraw', 'diagram', 'drawing'],
-      onSelect: () =>
-        editor.dispatchCommand(INSERT_EXCALIDRAW_COMMAND, undefined),
-    }),
-    new ComponentPickerOption('Poll', {
-      icon: <i className="icon poll" />,
-      keywords: ['poll', 'vote'],
-      onSelect: () =>
-        showModal('Insert Poll', (onClose) => (
-          <InsertPollDialog activeEditor={editor} onClose={onClose} />
-        )),
-    }),
-    ...EmbedConfigs.map(
-      (embedConfig) =>
-        new ComponentPickerOption(`Embed ${embedConfig.contentName}`, {
-          icon: embedConfig.icon,
-          keywords: [...embedConfig.keywords, 'embed'],
-          onSelect: () =>
-            editor.dispatchCommand(INSERT_EMBED_COMMAND, embedConfig.type),
-        }),
-    ),
+
     new ComponentPickerOption('Equation', {
       icon: <i className="icon equation" />,
       keywords: ['equation', 'latex', 'math'],
@@ -287,20 +215,17 @@ function getBaseOptions(editor: LexicalEditor, showModal: ShowModal) {
           src: catTypingGif,
         }),
     }),
+
     new ComponentPickerOption('Image', {
       icon: <i className="icon image" />,
       keywords: ['image', 'photo', 'picture', 'file'],
-      onSelect: () =>
+      onSelect: () => {
         showModal('Insert Image', (onClose) => (
           <InsertImageDialog activeEditor={editor} onClose={onClose} />
-        )),
+        ));
+      },
     }),
-    new ComponentPickerOption('Collapsible', {
-      icon: <i className="icon caret-right" />,
-      keywords: ['collapse', 'collapsible', 'toggle'],
-      onSelect: () =>
-        editor.dispatchCommand(INSERT_COLLAPSIBLE_COMMAND, undefined),
-    }),
+
     new ComponentPickerOption('Columns Layout', {
       icon: <i className="icon columns" />,
       keywords: ['columns', 'layout', 'grid'],
@@ -322,32 +247,13 @@ function getBaseOptions(editor: LexicalEditor, showModal: ShowModal) {
 }
 
 export default function ComponentPickerMenuPlugin(): JSX.Element {
+  const [queryString, setQueryString] = useState('');
   const [editor] = useLexicalComposerContext();
   const [modal, showModal] = useModal();
-  const [queryString, setQueryString] = useState<string | null>(null);
 
   const checkForTriggerMatch = useBasicTypeaheadTriggerMatch('/', {
     minLength: 0,
   });
-
-  const options = useMemo(() => {
-    const baseOptions = getBaseOptions(editor, showModal);
-
-    if (!queryString) {
-      return baseOptions;
-    }
-
-    const regex = new RegExp(queryString, 'i');
-
-    return [
-      ...getDynamicOptions(editor, queryString),
-      ...baseOptions.filter(
-        (option) =>
-          regex.test(option.title) ||
-          option.keywords.some((keyword) => regex.test(keyword)),
-      ),
-    ];
-  }, [editor, queryString, showModal]);
 
   const onSelectOption = useCallback(
     (
@@ -365,38 +271,150 @@ export default function ComponentPickerMenuPlugin(): JSX.Element {
     [editor],
   );
 
+  const combinedOptions = useMemo(() => {
+    const baseOptions = getBaseOptions(editor, showModal); // Assuming you have this function
+
+    return baseOptions;
+  }, [editor, showModal]);
+
+  const textOptions = useMemo(() => {
+    return combinedOptions.filter((option) =>
+      [
+        'Paragraph',
+        'Heading 1',
+        'Heading 2',
+        'Heading 3',
+        'Numbered List',
+        'Bulleted List',
+        'Check List',
+      ].includes(option.title),
+    );
+  }, [combinedOptions]);
+
+  const layoutOptions = useMemo(() => {
+    return combinedOptions.filter((option) =>
+      [
+        'Columns Layout',
+        'Align left',
+        'Align center',
+        'Align right',
+        'Align justify',
+        'Divider',
+      ].includes(option.title),
+    );
+  }, [combinedOptions]);
+
+  const mediaOptions = useMemo(() => {
+    return combinedOptions.filter((option) =>
+      ['Table', 'Quote', 'Code', 'Image', 'GIF', 'Equation'].includes(
+        option.title,
+      ),
+    );
+  }, [combinedOptions]);
+
+  const variableOptions = useMemo(() => {
+    return combinedOptions.filter((option) =>
+      [
+        'Email',
+        'First name',
+        'Last name',
+        'Phone',
+        'Company name',
+        'Company domain',
+      ].includes(option.title),
+    );
+  }, [combinedOptions]);
+
+  const handleSearchChange = (e) => {
+    setQueryString(e.target.value);
+  };
+
+  const menuSections = [
+    {options: textOptions, title: 'Basics'},
+    {options: layoutOptions, title: 'Layout'},
+    {options: mediaOptions, title: 'Elements'},
+    {options: variableOptions, title: 'Variables'},
+  ];
+
+  const filterOptionsByQueryString = (options, queryStringSearch) => {
+    // Ensure queryString is a string and trim it
+    const cleanedQueryString =
+      typeof queryStringSearch === 'string'
+        ? queryStringSearch.trim().toLowerCase()
+        : '';
+
+    return options.filter((option) => {
+      const title = option.title;
+      // Only process titles that are valid strings
+      return (
+        typeof title === 'string' &&
+        title.toLowerCase().includes(cleanedQueryString)
+      );
+    });
+  };
+
+  const filteredSections = menuSections
+    .map((section) => {
+      const filteredOptions = filterOptionsByQueryString(
+        section.options,
+        queryString,
+      );
+      return {
+        options: filteredOptions,
+        title: section.title,
+      };
+    })
+    .filter((section) => section.options.length > 0);
+
   return (
     <>
       {modal}
       <LexicalTypeaheadMenuPlugin<ComponentPickerOption>
-        onQueryChange={setQueryString}
         onSelectOption={onSelectOption}
         triggerFn={checkForTriggerMatch}
-        options={options}
+        options={combinedOptions}
+        onSearchChange={handleSearchChange}
+        onQueryChange={setQueryString}
         menuRenderFn={(
           anchorElementRef,
           {selectedIndex, selectOptionAndCleanUp, setHighlightedIndex},
         ) =>
-          anchorElementRef.current && options.length
+          anchorElementRef.current
             ? ReactDOM.createPortal(
                 <div className="typeahead-popover component-picker-menu">
-                  <ul>
-                    {options.map((option, i: number) => (
-                      <ComponentPickerMenuItem
-                        index={i}
-                        isSelected={selectedIndex === i}
-                        onClick={() => {
-                          setHighlightedIndex(i);
-                          selectOptionAndCleanUp(option);
-                        }}
-                        onMouseEnter={() => {
-                          setHighlightedIndex(i);
-                        }}
-                        key={option.key}
-                        option={option}
-                      />
-                    ))}
-                  </ul>
+                  {filteredSections.map((section) => (
+                    <div key={section.title} className="section">
+                      <div className="header-title">{section.title}</div>
+
+                      {Array(Math.ceil(section.options.length / 3))
+                        .fill(null)
+                        .map((_, rowIndex) => (
+                          <div className="options-row" key={rowIndex}>
+                            {section.options
+                              .slice(rowIndex * 3, rowIndex * 3 + 3)
+                              .map((option) => {
+                                const index = combinedOptions.indexOf(option);
+                                return (
+                                  <ComponentPickerMenuItem
+                                    className="component-picker-item"
+                                    index={index}
+                                    isSelected={selectedIndex === index}
+                                    onClick={() => {
+                                      setHighlightedIndex(index);
+                                      selectOptionAndCleanUp(option);
+                                    }}
+                                    onMouseEnter={() =>
+                                      setHighlightedIndex(index)
+                                    }
+                                    key={option.key}
+                                    option={option}
+                                  />
+                                );
+                              })}
+                          </div>
+                        ))}
+                    </div>
+                  ))}
                 </div>,
                 anchorElementRef.current,
               )

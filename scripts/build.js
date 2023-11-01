@@ -352,6 +352,7 @@ const packages = [
     packageName: 'lexical-clipboard',
     sourcePath: './packages/lexical-clipboard/src/',
   },
+
   {
     modules: [
       {
@@ -614,7 +615,7 @@ async function buildAll() {
 
   for (const pkg of packages) {
     const {name, sourcePath, outputPath, packageName, modules} = pkg;
-
+    console.log(outputPath, packageName);
     for (const module of modules) {
       const {sourceFileName, outputFileName} = module;
       let inputFile = path.resolve(path.join(`${sourcePath}${sourceFileName}`));
