@@ -176,7 +176,7 @@ export default function Editor(): JSX.Element {
           <TabIndentationPlugin />
 
           <LayoutPlugin />
-          {floatingAnchorElem && !isSmallWidthViewport && (
+          {floatingAnchorElem && (
             <>
               <DraggableBlockPlugin anchorElem={floatingAnchorElem} />
               <CodeActionMenuPlugin anchorElem={floatingAnchorElem} />

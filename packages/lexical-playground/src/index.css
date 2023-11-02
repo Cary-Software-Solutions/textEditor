@@ -85,7 +85,7 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background: #eee;
+  background: #ffff;
   padding: 0 20px;
 }
 
@@ -160,7 +160,7 @@ header h1 {
   position: relative;
   outline: 0;
   z-index: 0;
-  overflow: auto;
+  overflow: visible;
 }
 
 .editor {
@@ -562,6 +562,14 @@ i.gif {
 
 i.copy {
   background-image: url(images/icons/copy.svg);
+}
+
+.vertical-divider {
+  display: inline-block;
+  height: fill; /* Adjust the height as needed */
+  width: 1px;
+  background-color: #ccc; /* Color of the divider */
+  margin: 5px; /* Adjust the margin to position the divider appropriately */
 }
 
 i.success {

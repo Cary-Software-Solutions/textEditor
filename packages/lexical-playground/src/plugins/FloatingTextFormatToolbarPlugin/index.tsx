@@ -8,9 +8,20 @@
 
 import './index.css';
 
-import {$isCodeHighlightNode} from '@lexical/code';
+import {$createCodeNode,$isCodeHighlightNode} from '@lexical/code';
 import {$isLinkNode, TOGGLE_LINK_COMMAND} from '@lexical/link';
+import {
+  INSERT_CHECK_LIST_COMMAND,
+  INSERT_ORDERED_LIST_COMMAND,
+  INSERT_UNORDERED_LIST_COMMAND,
+} from '@lexical/list';
 import {useLexicalComposerContext} from '@lexical/react/LexicalComposerContext';
+import {$createHeadingNode} from '@lexical/rich-text';
+import {
+  $getSelectionStyleValueForProperty,
+  $patchStyleText,
+  $setBlocksType,
+} from '@lexical/selection';
 import {mergeRegister} from '@lexical/utils';
 import {
   $getSelection,
@@ -18,6 +29,7 @@ import {
   $isRangeSelection,
   $isTextNode,
   COMMAND_PRIORITY_LOW,
+  FORMAT_ELEMENT_COMMAND,
   FORMAT_TEXT_COMMAND,
   LexicalEditor,
   SELECTION_CHANGE_COMMAND,
@@ -26,10 +38,39 @@ import {useCallback, useEffect, useRef, useState} from 'react';
 import * as React from 'react';
 import {createPortal} from 'react-dom';
 
+import DropDown, {DropDownItem} from '../../ui/DropDown';
+import DropdownColorPicker from '../../ui/DropdownColorPicker';
 import {getDOMRangeRect} from '../../utils/getDOMRangeRect';
 import {getSelectedNode} from '../../utils/getSelectedNode';
 import {setFloatingElemPosition} from '../../utils/setFloatingElemPosition';
-import {INSERT_INLINE_COMMAND} from '../CommentPlugin';
+
+const FONT_FAMILY_OPTIONS: [string, string][] = [
+  ['Arial', 'Arial'],
+  ['Courier New', 'Courier New'],
+  ['Georgia', 'Georgia'],
+  ['Times New Roman', 'Times New Roman'],
+  ['Trebuchet MS', 'Trebuchet MS'],
+  ['Verdana', 'Verdana'],
+];
+
+const FONT_SIZE_OPTIONS: [string, string][] = [
+  ['10px', '10px'],
+  ['11px', '11px'],
+  ['12px', '12px'],
+  ['13px', '13px'],
+  ['14px', '14px'],
+  ['15px', '15px'],
+  ['16px', '16px'],
+  ['17px', '17px'],
+  ['18px', '18px'],
+  ['19px', '19px'],
+  ['20px', '20px'],
+];
+
+function dropDownActiveClass(active: boolean) {
+  if (active) return 'active dropdown-item-active';
+  else return '';
+}
 
 function TextFormatFloatingToolbar({
   editor,
@@ -42,6 +83,12 @@ function TextFormatFloatingToolbar({
   isStrikethrough,
   isSubscript,
   isSuperscript,
+  isHighlight,
+  isCodeBlock,
+  isHeading,
+  isListType,
+  isMovementType,
+  isSettingsType,
 }: {
   editor: LexicalEditor;
   anchorElem: HTMLElement;
@@ -53,8 +100,19 @@ function TextFormatFloatingToolbar({
   isSubscript: boolean;
   isSuperscript: boolean;
   isUnderline: boolean;
+  isHihglight: boolean;
+  isCodeBlock: boolean;
+  isHeading: boolean;
+  isListType: boolean;
+  isMovementType: boolean;
+  isSettingsType: boolean;
 }): JSX.Element {
+  const [bgColor, setBgColor] = useState<string>('#fff');
+  const [fontColor, setFontColor] = useState<string>('#000');
+
   const popupCharStylesEditorRef = useRef<HTMLDivElement | null>(null);
+  const [fontFamily, setFontFamily] = useState<string>('Arial');
+  const [fontSize, setFontSize] = useState<string>('15px');
 
   const insertLink = useCallback(() => {
     if (!isLink) {
@@ -64,9 +122,64 @@ function TextFormatFloatingToolbar({
     }
   }, [editor, isLink]);
 
-  const insertComment = () => {
-    editor.dispatchCommand(INSERT_INLINE_COMMAND, undefined);
-  };
+  function FontDropDown({
+    editorFont,
+    value,
+    style,
+    disabled = false,
+  }: {
+    editorFont: LexicalEditor;
+    value: string;
+    style: string;
+    disabled?: boolean;
+  }): JSX.Element {
+    const handleClick = useCallback(
+      (option: string) => {
+        editorFont.update(() => {
+          const selection = $getSelection();
+          if (
+            $isRangeSelection(selection) ||
+            DEPRECATED_$isGridSelection(selection)
+          ) {
+            $patchStyleText(selection, {
+              [style]: option,
+            });
+          }
+        });
+      },
+      [editor, style],
+    );
+
+    const buttonAriaLabel =
+      style === 'font-family'
+        ? 'Formatting options for font family'
+        : 'Formatting options for font size';
+
+    return (
+      <DropDown
+        disabled={disabled}
+        buttonClassName={'toolbar-item ' + style}
+        buttonLabel={value}
+        buttonIconClassName={
+          style === 'font-family' ? 'icon block-type font-family' : ''
+        }
+        buttonAriaLabel={buttonAriaLabel}>
+        {(style === 'font-family'
+          ? FONT_FAMILY_OPTIONS
+          : FONT_SIZE_OPTIONS
+        ).map(([option, text]) => (
+          <DropDownItem
+            className={`item ${dropDownActiveClass(value === option)} ${
+              style === 'font-size' ? 'fontsize-item' : ''
+            }`}
+            onClick={() => handleClick(option)}
+            key={option}>
+            <span className="text">{text}</span>
+          </DropDownItem>
+        ))}
+      </DropDown>
+    );
+  }
 
   function mouseMoveListener(e: MouseEvent) {
     if (
@@ -111,9 +224,24 @@ function TextFormatFloatingToolbar({
     const popupCharStylesEditorElem = popupCharStylesEditorRef.current;
     const nativeSelection = window.getSelection();
 
+    setBgColor(
+      $getSelectionStyleValueForProperty(selection, 'background-color', '#fff'),
+    );
+
+    setFontColor(
+      $getSelectionStyleValueForProperty(selection, 'color', '#000'),
+    );
+
     if (popupCharStylesEditorElem === null) {
       return;
     }
+
+    setFontFamily(
+      $getSelectionStyleValueForProperty(selection, 'font-family', 'Arial'),
+    );
+    setFontSize(
+      $getSelectionStyleValueForProperty(selection, 'font-size', '15px'),
+    );
 
     const rootElement = editor.getRootElement();
     if (
@@ -178,6 +306,146 @@ function TextFormatFloatingToolbar({
     );
   }, [editor, updateTextFormatFloatingToolbar]);
 
+  const applyStyleText = useCallback(
+    (styles: Record<string, string>) => {
+      editor.update(() => {
+        const selection = $getSelection();
+        if (
+          $isRangeSelection(selection) ||
+          DEPRECATED_$isGridSelection(selection)
+        ) {
+          $patchStyleText(selection, styles);
+        }
+      });
+    },
+    [editor],
+  );
+
+  const onFontColorSelect = useCallback(
+    (value: string) => {
+      applyStyleText({color: value});
+    },
+    [applyStyleText],
+  );
+
+  const onBgColorSelect = useCallback(
+    (value: string) => {
+      applyStyleText({'background-color': value});
+    },
+    [applyStyleText],
+  );
+
+  const [isOpenHeading, setIsOpenHeading] = useState(false);
+  const [isOpenList, setIsOpenList] = useState(false);
+
+  const dropdownRefOpenList = useRef(null); // Reference to track the dropdown div
+  const buttonRefOpenList = useRef(null); // Reference to track the button
+
+  useEffect(() => {
+    if (isOpenList) {
+      const handleClickOutside = (event) => {
+        // Check if the click is outside both the dropdown and the button
+        if (
+          dropdownRefOpenList.current &&
+          !dropdownRefOpenList.current.contains(event.target) &&
+          buttonRefOpenList.current &&
+          !buttonRefOpenList.current.contains(event.target)
+        ) {
+          setIsOpenList(false);
+        }
+      };
+
+      document.addEventListener('mousedown', handleClickOutside);
+
+      // Remove the event listener when the component unmounts or when the dropdown closes
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [isOpenList]);
+
+  const [isOpenMovement, setIsOpenMovement] = useState(false);
+
+  const dropdownRefOpenMovement = useRef(null); // Reference to track the dropdown
+  const buttonRefOpenMovement = useRef(null); // Reference to track the button
+
+  useEffect(() => {
+    if (isOpenMovement) {
+      const handleClickOutside = (event) => {
+        // Check if the click is outside both the dropdown and the button
+        if (
+          dropdownRefOpenMovement.current &&
+          !dropdownRefOpenMovement.current.contains(event.target) &&
+          buttonRefOpenMovement.current &&
+          !buttonRefOpenMovement.current.contains(event.target)
+        ) {
+          setIsOpenMovement(false);
+        }
+      };
+
+      document.addEventListener('mousedown', handleClickOutside);
+
+      // Remove the event listener when the component unmounts or when the dropdown closes
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [isOpenMovement]);
+
+  const [isOpenSettings, setIsOpenSettings] = useState(false);
+
+  const dropdownRefOpenSettings = useRef(null); // Reference to track the dropdown
+  const buttonRefOpenSettings = useRef(null); // Reference to track the button
+
+  useEffect(() => {
+    if (isOpenSettings) {
+      const handleClickOutside = (event) => {
+        // Check if the click is outside both the dropdown and the button
+        if (
+          dropdownRefOpenSettings.current &&
+          !dropdownRefOpenSettings.current.contains(event.target) &&
+          buttonRefOpenSettings.current &&
+          !buttonRefOpenSettings.current.contains(event.target)
+        ) {
+          setIsOpenSettings(false);
+        }
+      };
+
+      document.addEventListener('mousedown', handleClickOutside);
+
+      // Remove the event listener when the component unmounts or when the dropdown closes
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [isOpenSettings]);
+
+  const dropdownRefOpenHeading = useRef(null); // Reference to track the dropdow
+  const buttonRefOpenHeading = useRef(null); // Reference to track the button
+
+  useEffect(() => {
+    if (isOpenHeading) {
+      const handleClickOutside = (event) => {
+        // Check if the click is outside both the dropdown and the button
+        if (
+          dropdownRefOpenHeading.current &&
+          !dropdownRefOpenHeading.current.contains(event.target) &&
+          buttonRefOpenHeading.current &&
+          !buttonRefOpenHeading.current.contains(event.target)
+        ) {
+          setIsOpenHeading(false);
+        }
+      };
+
+      document.addEventListener('mousedown', handleClickOutside);
+
+      // Remove the event listener when the component unmounts or when the dropdown closes
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [isOpenHeading]);
+
   return (
     <div ref={popupCharStylesEditorRef} className="floating-text-format-popup">
       {editor.isEditable() && (
@@ -218,25 +486,23 @@ function TextFormatFloatingToolbar({
             aria-label="Format text with a strikethrough">
             <i className="format strikethrough" />
           </button>
+
+          <DropdownColorPicker
+            disabled={!editor.isEditable}
+            buttonClassName="toolbar-item color-picker"
+            buttonAriaLabel="Formatting background color"
+            buttonIconClassName="icon bg-color"
+            color={bgColor}
+            onChange={onBgColorSelect}
+            title="bg color"
+            className={'popup-item spaced ' + (isStrikethrough ? 'active' : '')}
+          />
           <button
             type="button"
-            onClick={() => {
-              editor.dispatchCommand(FORMAT_TEXT_COMMAND, 'subscript');
-            }}
-            className={'popup-item spaced ' + (isSubscript ? 'active' : '')}
-            title="Subscript"
-            aria-label="Format Subscript">
-            <i className="format subscript" />
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              editor.dispatchCommand(FORMAT_TEXT_COMMAND, 'superscript');
-            }}
-            className={'popup-item spaced ' + (isSuperscript ? 'active' : '')}
-            title="Superscript"
-            aria-label="Format Superscript">
-            <i className="format superscript" />
+            onClick={insertLink}
+            className={'popup-item spaced ' + (isLink ? 'active' : '')}
+            aria-label="Insert link">
+            <i className="format link" />
           </button>
           <button
             type="button"
@@ -249,20 +515,310 @@ function TextFormatFloatingToolbar({
           </button>
           <button
             type="button"
-            onClick={insertLink}
-            className={'popup-item spaced ' + (isLink ? 'active' : '')}
-            aria-label="Insert link">
-            <i className="format link" />
+            onClick={() => {
+              editor.dispatchCommand(FORMAT_TEXT_COMMAND, 'superscript');
+            }}
+            className={'popup-item spaced ' + (isSuperscript ? 'active' : '')}
+            title="Superscript"
+            aria-label="Format Superscript">
+            <i className="format superscript" />
           </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              editor.dispatchCommand(FORMAT_TEXT_COMMAND, 'subscript');
+            }}
+            className={'popup-item spaced ' + (isSubscript ? 'active' : '')}
+            title="Subscript"
+            aria-label="Format Subscript">
+            <i className="format subscript" />
+          </button>
+
+          <div className="vertical-divider" />
+
+          <div style={{display: 'inline-block', position: 'relative'}}>
+            <button
+              type="button"
+              ref={buttonRefOpenHeading}
+              onClick={() => {
+                setIsOpenHeading(!isOpenHeading);
+              }}
+              className={
+                'headingHead popup-item spaced ' + (isHeading ? 'active' : '')
+              }
+              title="Heading"
+              aria-label="Format Heading">
+              <i className="icon Heading" />
+            </button>
+
+            {isOpenHeading && (
+              <div
+                ref={dropdownRefOpenHeading}
+                className="dropdown"
+                style={{
+                  display: 'flex',
+                  left: '50%',
+                  position: 'absolute',
+                  top: '100%',
+                  transform: 'translateX(-50%)',
+                  zIndex: 1,
+                }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    editor.update(() => {
+                      const selection = $getSelection();
+                      if ($isRangeSelection(selection)) {
+                        $setBlocksType(selection, () =>
+                          $createHeadingNode(`h1`),
+                        );
+                      }
+                    });
+                  }}
+                  className={'popup-item spaced ' + (isHeading ? 'active' : '')}
+                  aria-label="format heading">
+                  <i className="icon h1" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    editor.update(() => {
+                      const selection = $getSelection();
+                      if ($isRangeSelection(selection)) {
+                        $setBlocksType(selection, () =>
+                          $createHeadingNode(`h2`),
+                        );
+                      }
+                    });
+                  }}
+                  className={'popup-item spaced ' + (isHeading ? 'active' : '')}
+                  aria-label="format heading">
+                  <i className="icon h2" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    editor.update(() => {
+                      const selection = $getSelection();
+                      if ($isRangeSelection(selection)) {
+                        $setBlocksType(selection, () =>
+                          $createHeadingNode(`h3`),
+                        );
+                      }
+                    });
+                  }}
+                  className={'popup-item spaced ' + (isHeading ? 'active' : '')}
+                  aria-label="format heading">
+                  <i className="icon h3" />
+                </button>
+              </div>
+            )}
+          </div>
+          <div style={{display: 'inline-block', position: 'relative'}}>
+            <button
+              type="button"
+              ref={buttonRefOpenList}
+              onClick={() => {
+                setIsOpenList(!isOpenList);
+              }}
+              className={
+                'headingHead popup-item spaced ' + (isListType ? 'active' : '')
+              }
+              title="List"
+              aria-label="Format List">
+              <i className="icon list" />
+            </button>
+            {isOpenList && (
+              <div
+                ref={dropdownRefOpenList}
+                className="dropdown"
+                style={{
+                  display: 'flex',
+                  left: '50%',
+                  position: 'absolute',
+                  top: '100%',
+                  transform: 'translateX(-50%)',
+                  zIndex: 1,
+                }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    editor.dispatchCommand(
+                      INSERT_ORDERED_LIST_COMMAND,
+                      undefined,
+                    );
+                  }}
+                  className={
+                    'popup-item spaced ' + (isListType ? 'active' : '')
+                  }
+                  aria-label="format list">
+                  <i className="icon number" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    editor.dispatchCommand(
+                      INSERT_UNORDERED_LIST_COMMAND,
+                      undefined,
+                    );
+                  }}
+                  className={
+                    'popup-item spaced ' + (isListType ? 'active' : '')
+                  }
+                  aria-label="format list">
+                  <i className="icon bullet" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    editor.dispatchCommand(
+                      INSERT_CHECK_LIST_COMMAND,
+                      undefined,
+                    );
+                  }}
+                  className={
+                    'popup-item spaced ' + (isListType ? 'active' : '')
+                  }
+                  aria-label="format list">
+                  <i className="icon check" />
+                </button>
+              </div>
+            )}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              editor.update(() => {
+                const selection = $getSelection();
+
+                if ($isRangeSelection(selection)) {
+                  if (selection.isCollapsed()) {
+                    $setBlocksType(selection, () => $createCodeNode());
+                  } else {
+                    // Will this ever happen?
+                    const textContent = selection.getTextContent();
+                    const codeNode = $createCodeNode();
+                    selection.insertNodes([codeNode]);
+                    selection.insertRawText(textContent);
+                  }
+                }
+              });
+            }}
+            className={'popup-item spaced ' + (isCodeBlock ? 'active' : '')}
+            title="CodeBlock"
+            aria-label="Format CodeBlock">
+            <i className="icon code" />
+          </button>
+
+          <div className="vertical-divider" />
+
+          <div style={{display: 'inline-block', position: 'relative'}}>
+            <button
+              type="button"
+              ref={buttonRefOpenMovement}
+              onClick={() => {
+                setIsOpenMovement(!isOpenMovement);
+              }}
+              className={
+                'headingHead popup-item spaced ' +
+                (isMovementType ? 'active' : '')
+              }
+              title="Movement"
+              aria-label="Format Movement">
+              <i className="icon movement" />
+            </button>
+            {isOpenMovement && (
+              <div
+                ref={dropdownRefOpenMovement}
+                className="dropdown"
+                style={{
+                  display: 'flex',
+                  left: '50%',
+                  position: 'absolute',
+                  top: '100%',
+                  transform: 'translateX(-50%)',
+                  zIndex: 1,
+                }}>
+                {(['left', 'center', 'right', 'justify'] as const).map(
+                  (alignment) => (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        editor.dispatchCommand(
+                          FORMAT_ELEMENT_COMMAND,
+                          alignment,
+                        );
+                      }}
+                      className={
+                        'popup-item spaced ' + (isMovementType ? 'active' : '')
+                      }
+                      aria-label="format movement">
+                      <i className={`icon ${alignment}-align`} />
+                    </button>
+                  ),
+                )}
+              </div>
+            )}
+          </div>
+
+          <div style={{display: 'inline-block', position: 'relative'}}>
+            <button
+              type="button"
+              ref={buttonRefOpenSettings}
+              onClick={() => {
+                setIsOpenSettings(!isOpenSettings);
+              }}
+              className={
+                'headingHead popup-item spaced ' +
+                (isSettingsType ? 'active' : '')
+              }
+              title="Settings"
+              aria-label="Format Settings">
+              <i className="icon Settings" />
+            </button>
+            {isOpenSettings && (
+              <div
+                className="dropdown"
+                style={{
+                  display: 'flex',
+                  left: '50%',
+                  position: 'absolute',
+                  top: '100%',
+                  transform: 'translateX(-50%)',
+                  zIndex: 1,
+                }}>
+                <FontDropDown
+                  disabled={!editor.isEditable}
+                  style={'font-family'}
+                  value={fontFamily}
+                  editorFont={editor}
+                />
+
+                <FontDropDown
+                  disabled={!editor.isEditable}
+                  style={'font-size'}
+                  value={fontSize}
+                  editorFont={editor}
+                />
+
+                <DropdownColorPicker
+                  disabled={!editor.isEditable}
+                  buttonClassName="toolbar-item color-picker"
+                  buttonAriaLabel="Formatting text color"
+                  buttonIconClassName="icon font-color"
+                  color={fontColor}
+                  onChange={onFontColorSelect}
+                  title="text color"
+                />
+              </div>
+            )}
+          </div>
         </>
       )}
-      <button
-        type="button"
-        onClick={insertComment}
-        className={'popup-item spaced insert-comment'}
-        aria-label="Insert comment">
-        <i className="format add-comment" />
-      </button>
     </div>
   );
 }
